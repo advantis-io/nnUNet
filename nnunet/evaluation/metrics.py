@@ -383,6 +383,73 @@ def avg_surface_distance_symmetric(test=None, reference=None, confusion_matrix=N
     return metric.assd(test, reference, voxel_spacing, connectivity)
 
 
+def _get_confusion_matrix(test=None, reference=None, confusion_matrix=None, nan_for_nonexisting=True):
+
+    if confusion_matrix is None:
+        confusion_matrix = ConfusionMatrix(test, reference)
+
+    test_empty, test_full, reference_empty, reference_full = confusion_matrix.get_existence()
+
+    if test_empty or test_full or reference_empty or reference_full:
+        if nan_for_nonexisting:
+            return float("NaN")
+        else:
+            return 0
+    return confusion_matrix
+
+
+def vol_of_reference(test=None, reference=None, confusion_matrix=None, nan_for_nonexisting=True, voxel_spacing=None, **kwargs):
+
+    confusion_matrix = _get_confusion_matrix(test=test, reference=reference, confusion_matrix=confusion_matrix, nan_for_nonexisting=nan_for_nonexisting)
+    if not isinstance(confusion_matrix, ConfusionMatrix):
+        return confusion_matrix
+    tp, fp, tn, fn = confusion_matrix.get_matrix()
+    return np.prod(voxel_spacing) * (tp + fn)
+
+
+def vol_of_test(test=None, reference=None, confusion_matrix=None, nan_for_nonexisting=True, voxel_spacing=None, **kwargs):
+
+    confusion_matrix = _get_confusion_matrix(test=test, reference=reference, confusion_matrix=confusion_matrix, nan_for_nonexisting=nan_for_nonexisting)
+    if not isinstance(confusion_matrix, ConfusionMatrix):
+        return confusion_matrix
+    tp, fp, tn, fn = confusion_matrix.get_matrix()
+    return np.prod(voxel_spacing) * (tp + fp)
+
+
+def vol_of_false_negatives(test=None, reference=None, confusion_matrix=None, nan_for_nonexisting=True, voxel_spacing=None, **kwargs):
+
+    confusion_matrix = _get_confusion_matrix(test=test, reference=reference, confusion_matrix=confusion_matrix, nan_for_nonexisting=nan_for_nonexisting)
+    if not isinstance(confusion_matrix, ConfusionMatrix):
+        return confusion_matrix
+    return np.prod(voxel_spacing) * confusion_matrix.fn
+
+
+def vol_of_false_positives(test=None, reference=None, confusion_matrix=None, nan_for_nonexisting=True, voxel_spacing=None, **kwargs):
+
+    confusion_matrix = _get_confusion_matrix(test=test, reference=reference, confusion_matrix=confusion_matrix, nan_for_nonexisting=nan_for_nonexisting)
+    if not isinstance(confusion_matrix, ConfusionMatrix):
+        return confusion_matrix
+    return np.prod(voxel_spacing) * confusion_matrix.fp
+
+
+def vol_difference(test=None, reference=None, confusion_matrix=None, nan_for_nonexisting=True, voxel_spacing=None, **kwargs):
+
+    confusion_matrix = _get_confusion_matrix(test=test, reference=reference, confusion_matrix=confusion_matrix, nan_for_nonexisting=nan_for_nonexisting)
+    if not isinstance(confusion_matrix, ConfusionMatrix):
+        return confusion_matrix
+    tp, fp, tn, fn = confusion_matrix.get_matrix()
+    return np.abs(np.prod(voxel_spacing) * (fn - fp))
+
+
+def vol_difference_normalized(test=None, reference=None, confusion_matrix=None, nan_for_nonexisting=True, voxel_spacing=None, **kwargs):
+
+    confusion_matrix = _get_confusion_matrix(test=test, reference=reference, confusion_matrix=confusion_matrix, nan_for_nonexisting=nan_for_nonexisting)
+    if not isinstance(confusion_matrix, ConfusionMatrix):
+        return confusion_matrix
+    tp, fp, tn, fn = confusion_matrix.get_matrix()
+    return np.abs(100 * np.prod(voxel_spacing) * (fn - fp) / (np.prod(voxel_spacing) * (tp + fn)))
+
+
 ALL_METRICS = {
     "False Positive Rate": false_positive_rate,
     "Dice": dice,
@@ -402,5 +469,11 @@ ALL_METRICS = {
     "Total Positives Test": total_positives_test,
     "Total Negatives Test": total_negatives_test,
     "Total Positives Reference": total_positives_reference,
-    "total Negatives Reference": total_negatives_reference
+    "total Negatives Reference": total_negatives_reference,
+    "Vol. of Reference (mm3)": vol_of_reference,
+    "Vol. of Test (mm3)": vol_of_test,
+    "Vol. of FNs (mm3)": vol_of_false_negatives,
+    "Vol. of FPs (mm3)": vol_of_false_positives,
+    "Vol. Difference (mm3)": vol_difference,
+    "Vol. Difference (Ref norm %) (mm3)": vol_difference_normalized,
 }

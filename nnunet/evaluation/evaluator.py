@@ -47,7 +47,13 @@ class Evaluator:
         "True Negative Rate",
         "False Discovery Rate",
         "Total Positives Test",
-        "Total Positives Reference"
+        "Total Positives Reference",
+        "Vol. of Reference (mm3)",
+        "Vol. of Test (mm3)",
+        "Vol. of FNs (mm3)",
+        "Vol. of FPs (mm3)",
+        "Vol. Difference (mm3)",
+        "Vol. Difference (Ref norm %) (mm3)",
     ]
 
     default_advanced_metrics = [
