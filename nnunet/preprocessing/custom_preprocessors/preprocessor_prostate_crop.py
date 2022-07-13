@@ -1,7 +1,7 @@
 import numpy as np
 
 from nnunet.preprocessing.preprocessing import PreprocessorFor2D, GenericPreprocessor, resample_patient
-from nnunet.preprocessing.cropping import get_case_identifier_from_npz
+from nnunet.preprocessing.cropping import get_case_identifier_from_npz, ImageCropper
 import nibabel as nib
 
 
@@ -16,6 +16,13 @@ def itk_meta_to_affine(itk_orig, itk_direct, itk_zooms):
     affine = np.eye(4)
     affine[:3, :3] = itk_direct.dot(itk_zooms)
     affine[:3, -1] = itk_orig
+    return affine
+
+
+def affine_after_crop(old_affine, mins):
+    crop_affine = np.eye(4)
+    crop_affine[:3, 3] = mins
+    affine = np.dot(old_affine, crop_affine)
     return affine
 
 
@@ -34,11 +41,7 @@ def create_bounding_box_mask(shape, zooms, bbox_shape_mm=(90.0, 110.0, 130.0)):
 def crop_to_prostate(data, affine):
     mins, maxs = create_bounding_box_mask(data.shape, nib.Nifti1Image(np.array([[[0]]]), affine).header.get_zooms()[:3])
     data = data[mins[0] : maxs[0], mins[1] : maxs[1], mins[2] : maxs[2]]
-    size = np.prod(data.shape[:3])
-    crop_affine = np.eye(4)
-    crop_affine[:3, 3] = mins
-    affine = np.dot(affine, crop_affine)
-    return data, affine
+    return data, affine_after_crop(affine, mins)
 
 
 def crop_data_seg(data, properties, seg=None):
@@ -48,14 +51,23 @@ def crop_data_seg(data, properties, seg=None):
     if not np.allclose(orig_affine, canon_affine):
         raise ValueError("The input data must be in RAS+.")
     assert data.shape[0] == 1 and seg.shape[0] == 1
-    data, new_affine = crop_to_prostate(data[0].T, orig_affine)
+    # Note the transpose, as the dims in crop_bbox are z, y, x
+    default_crop_affine = affine_after_crop(orig_affine, np.array(properties["crop_bbox"])[:, 0].T)
+    data, new_affine = crop_to_prostate(data[0].T, default_crop_affine)
     data = data.T[None, ...]
     assert np.allclose(new_affine[:3, :3], orig_affine[:3, :3])
+    assert np.allclose(new_affine[:3, :3], default_crop_affine[:3, :3])
     # Overwrite itk_origin, which is the only one that is affected, as the cropping is not undone
     new_orig = new_affine[:3, -1]
     # Invert first the transposed axis, as the reference frame is LPS instead of RAS
     new_orig[:2] *= -1
     properties["itk_origin"] = new_orig
+    # Set crop_bbox to None, to exclude returning from cropping, as the additional cropping here complicates things
+    properties["crop_bbox"] = None
+    # Set original shape to after default cropping (probably not used anywhere, since we defined crop_bbox to None)
+    properties["original_size_of_raw_data"] = properties["size_after_cropping"]
+    # Set size_after_cropping which original holds the default after cropping size to the size defined now
+    properties["size_after_cropping"] = data[0].shape
     if seg is None:
         print(f"Before/after prostate cropping data shape: {before_shape}/{data.shape}")
         return data, properties
@@ -166,8 +178,6 @@ class ProstatePreprocessor(GenericPreprocessor):
     def preprocess_test_case(self, data_files, target_spacing, seg_file=None, force_separate_z=None):
         data, seg, properties = ImageCropper.crop_from_list_of_files(data_files, seg_file)
 
-        data, properties, seg = crop_data_seg(data, properties, seg=seg)
-
         data = data.transpose((0, *[i + 1 for i in self.transpose_forward]))
         seg = seg.transpose((0, *[i + 1 for i in self.transpose_forward]))
 
@@ -274,8 +284,6 @@ class ProstatePreprocessorFor2D(PreprocessorFor2D):
 
     def preprocess_test_case(self, data_files, target_spacing, seg_file=None, force_separate_z=None):
         data, seg, properties = ImageCropper.crop_from_list_of_files(data_files, seg_file)
-
-        data, properties, seg = crop_data_seg(data, properties, seg=seg)
 
         data = data.transpose((0, *[i + 1 for i in self.transpose_forward]))
         seg = seg.transpose((0, *[i + 1 for i in self.transpose_forward]))
