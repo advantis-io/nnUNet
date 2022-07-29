@@ -40,8 +40,9 @@ def create_bounding_box_mask(shape, zooms, bbox_shape_mm=(90.0, 110.0, 130.0)):
 
 def crop_to_prostate(data, affine):
     mins, maxs = create_bounding_box_mask(data.shape, nib.Nifti1Image(np.array([[[0]]]), affine).header.get_zooms()[:3])
+    bbox = [[mins[0], maxs[0]],[mins[1], maxs[1]],[mins[2], maxs[2]]]
     data = data[mins[0] : maxs[0], mins[1] : maxs[1], mins[2] : maxs[2]]
-    return data, affine_after_crop(affine, mins)
+    return data, affine_after_crop(affine, mins), bbox
 
 
 def crop_data_seg(data, properties, seg=None):
@@ -53,26 +54,21 @@ def crop_data_seg(data, properties, seg=None):
     assert data.shape[0] == 1 and seg.shape[0] == 1
     # Note the transpose, as the dims in crop_bbox are z, y, x
     default_crop_affine = affine_after_crop(orig_affine, np.array(properties["crop_bbox"])[:, 0].T)
-    data, new_affine = crop_to_prostate(data[0].T, default_crop_affine)
+    data, new_affine, bbox = crop_to_prostate(data[0].T, default_crop_affine)
     data = data.T[None, ...]
     assert np.allclose(new_affine[:3, :3], orig_affine[:3, :3])
     assert np.allclose(new_affine[:3, :3], default_crop_affine[:3, :3])
-    # Overwrite itk_origin, which is the only one that is affected, as the cropping is not undone
-    new_orig = new_affine[:3, -1]
-    # Invert first the transposed axis, as the reference frame is LPS instead of RAS
-    new_orig[:2] *= -1
-    properties["itk_origin"] = new_orig
-    # Set crop_bbox to None, to exclude returning from cropping, as the additional cropping here complicates things
-    properties["crop_bbox"] = None
-    # Set original shape to after default cropping (probably not used anywhere, since we defined crop_bbox to None)
-    properties["original_size_of_raw_data"] = properties["size_after_cropping"]
-    # Set size_after_cropping which original holds the default after cropping size to the size defined now
+    # Transpose the dims to z, y, x
+    bbox = bbox[::-1]
+    # Create new bounding box by adding the previous min per dim to the new bbox
+    properties["crop_bbox"] = bbox + np.array(properties["crop_bbox"])[:, 0][..., None]
+    # Set size_after_cropping which originally holds the default after cropping size to the size defined now
     properties["size_after_cropping"] = data[0].shape
     if seg is None:
         print(f"Before/after prostate cropping data shape: {before_shape}/{data.shape}")
         return data, properties
     seg_before_shape = seg.shape
-    seg, new_affine = crop_to_prostate(seg[0].T, orig_affine)
+    seg, new_affine, _ = crop_to_prostate(seg[0].T, orig_affine)
     seg = seg.T[None, ...]
     print(
         "Before/after prostate cropping data and seg shape: "
