@@ -32,10 +32,7 @@ def create_bounding_box_mask(shape, zooms, bbox_shape_mm=(90.0, 110.0, 130.0)):
     length = np.ceil(np.asarray(bbox_shape_mm) / zooms / 2).astype("int")
     mins = (center - length).clip(0)
     maxs = (center + length).clip(max=shape - 1)
-    return mins, maxs
-    mask = np.zeros(shape, dtype=bool)
-    mask[tuple(slice(i, j) for i, j in zip(mins, maxs + 1))] = True
-    return mask
+    return mins, maxs + 1
 
 
 def crop_to_prostate(data, affine):
