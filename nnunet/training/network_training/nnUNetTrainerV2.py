@@ -15,6 +15,7 @@
 
 from collections import OrderedDict
 from typing import Tuple
+from time import time
 
 import numpy as np
 import torch
@@ -208,6 +209,7 @@ class nnUNetTrainerV2(nnUNetTrainer):
         """
         ds = self.network.do_ds
         self.network.do_ds = False
+        s = time()
         ret = super().predict_preprocessed_data_return_seg_and_softmax(data,
                                                                        do_mirroring=do_mirroring,
                                                                        mirror_axes=mirror_axes,
@@ -217,6 +219,7 @@ class nnUNetTrainerV2(nnUNetTrainer):
                                                                        pad_kwargs=pad_kwargs, all_in_gpu=all_in_gpu,
                                                                        verbose=verbose,
                                                                        mixed_precision=mixed_precision)
+        print(f"Time to predict: {time() - s:.2f} sec.")
         self.network.do_ds = ds
         return ret
 
