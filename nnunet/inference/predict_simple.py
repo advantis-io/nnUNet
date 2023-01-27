@@ -121,6 +121,8 @@ def main():
                         help='Predictions are done with mixed precision by default. This improves speed and reduces '
                              'the required vram. If you want to disable mixed precision you can set this flag. Note '
                              'that this is not recommended (mixed precision is ~2x faster!)')
+    parser.add_argument('--save-torchscript', default=False, action='store_true', required=False,
+                        help='Trace loaded models and save them to the output fold.')
 
     args = parser.parse_args()
     input_folder = args.input_folder
@@ -199,7 +201,7 @@ def main():
                             num_threads_preprocessing, num_threads_nifti_save, None, part_id, num_parts, not disable_tta,
                             overwrite_existing=overwrite_existing, mode=mode, overwrite_all_in_gpu=all_in_gpu,
                             mixed_precision=not args.disable_mixed_precision,
-                            step_size=step_size)
+                            step_size=step_size, save_torchscript=args.save_torchscript)
         lowres_segmentations = lowres_output_folder
         torch.cuda.empty_cache()
         print("3d_lowres done")
@@ -218,7 +220,7 @@ def main():
                         num_threads_nifti_save, lowres_segmentations, part_id, num_parts, not disable_tta,
                         overwrite_existing=overwrite_existing, mode=mode, overwrite_all_in_gpu=all_in_gpu,
                         mixed_precision=not args.disable_mixed_precision,
-                        step_size=step_size, checkpoint_name=args.chk)
+                        step_size=step_size, checkpoint_name=args.chk, save_torchscript=args.save_torchscript)
 
 
 if __name__ == "__main__":

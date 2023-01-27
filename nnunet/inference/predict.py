@@ -132,7 +132,8 @@ def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_t
                   num_threads_nifti_save, segs_from_prev_stage=None, do_tta=True, mixed_precision=True,
                   overwrite_existing=False,
                   all_in_gpu=False, step_size=0.5, checkpoint_name="model_final_checkpoint",
-                  segmentation_export_kwargs: dict = None, disable_postprocessing: bool = False):
+                  segmentation_export_kwargs: dict = None, disable_postprocessing: bool = False,
+                  save_torchscript=False):
     """
     :param segmentation_export_kwargs:
     :param model: folder where the model is saved, must contain fold_x subfolders
@@ -147,6 +148,7 @@ def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_t
     :param do_tta: default: True, can be set to False for a 8x speedup at the cost of a reduced segmentation quality
     :param overwrite_existing: default: True
     :param mixed_precision: if None then we take no action. If True/False we overwrite what the model has in its init
+    :param save_torchscript: trace/jit models and save them in torchscript format.
     :return:
     """
     assert len(list_of_lists) == len(output_filenames)
@@ -182,7 +184,8 @@ def predict_cases(model, list_of_lists, output_filenames, folds, save_npz, num_t
 
     print("loading parameters for folds,", folds)
     trainer, params = load_model_and_checkpoint_files(model, folds, mixed_precision=mixed_precision,
-                                                      checkpoint_name=checkpoint_name)
+                                                      checkpoint_name=checkpoint_name,
+                                                      save_torchscript=save_torchscript)
 
     if segmentation_export_kwargs is None:
         if 'segmentation_export_params' in trainer.plans.keys():
@@ -296,7 +299,8 @@ def predict_cases_fast(model, list_of_lists, output_filenames, folds, num_thread
                        num_threads_nifti_save, segs_from_prev_stage=None, do_tta=True, mixed_precision=True,
                        overwrite_existing=False,
                        all_in_gpu=False, step_size=0.5, checkpoint_name="model_final_checkpoint",
-                       segmentation_export_kwargs: dict = None, disable_postprocessing: bool = False):
+                       segmentation_export_kwargs: dict = None, disable_postprocessing: bool = False,
+                       save_torchscript=False):
     assert len(list_of_lists) == len(output_filenames)
     if segs_from_prev_stage is not None: assert len(segs_from_prev_stage) == len(output_filenames)
 
@@ -329,7 +333,8 @@ def predict_cases_fast(model, list_of_lists, output_filenames, folds, num_thread
 
     print("loading parameters for folds,", folds)
     trainer, params = load_model_and_checkpoint_files(model, folds, mixed_precision=mixed_precision,
-                                                      checkpoint_name=checkpoint_name)
+                                                      checkpoint_name=checkpoint_name,
+                                                      save_torchscript=save_torchscript)
 
     if segmentation_export_kwargs is None:
         if 'segmentation_export_params' in trainer.plans.keys():
@@ -443,7 +448,8 @@ def predict_cases_fast(model, list_of_lists, output_filenames, folds, num_thread
 def predict_cases_fastest(model, list_of_lists, output_filenames, folds, num_threads_preprocessing,
                           num_threads_nifti_save, segs_from_prev_stage=None, do_tta=True, mixed_precision=True,
                           overwrite_existing=False, all_in_gpu=False, step_size=0.5,
-                          checkpoint_name="model_final_checkpoint", disable_postprocessing: bool = False):
+                          checkpoint_name="model_final_checkpoint", disable_postprocessing: bool = False,
+                          save_torchscript=False):
     assert len(list_of_lists) == len(output_filenames)
     if segs_from_prev_stage is not None: assert len(segs_from_prev_stage) == len(output_filenames)
 
@@ -476,7 +482,8 @@ def predict_cases_fastest(model, list_of_lists, output_filenames, folds, num_thr
 
     print("loading parameters for folds,", folds)
     trainer, params = load_model_and_checkpoint_files(model, folds, mixed_precision=mixed_precision,
-                                                      checkpoint_name=checkpoint_name)
+                                                      checkpoint_name=checkpoint_name,
+                                                      save_torchscript=save_torchscript)
 
     print("starting preprocessing generator")
     preprocessing = preprocess_multithreaded(trainer, list_of_lists, cleaned_output_files, num_threads_preprocessing,
@@ -607,7 +614,8 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
                         part_id: int, num_parts: int, tta: bool, mixed_precision: bool = True,
                         overwrite_existing: bool = True, mode: str = 'normal', overwrite_all_in_gpu: bool = None,
                         step_size: float = 0.5, checkpoint_name: str = "model_final_checkpoint",
-                        segmentation_export_kwargs: dict = None, disable_postprocessing: bool = False):
+                        segmentation_export_kwargs: dict = None, disable_postprocessing: bool = False,
+                        save_torchscript: bool = False):
     """
         here we use the standard naming scheme to generate list_of_lists and output_files needed by predict_cases
 
@@ -624,6 +632,7 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
     :param tta:
     :param mixed_precision:
     :param overwrite_existing: if not None then it will be overwritten with whatever is in there. None is default (no overwrite)
+    :param save_torchscript: save models in torchscript format.
     :return:
     """
     maybe_mkdir_p(output_folder)
@@ -661,7 +670,8 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
                              all_in_gpu=all_in_gpu,
                              step_size=step_size, checkpoint_name=checkpoint_name,
                              segmentation_export_kwargs=segmentation_export_kwargs,
-                             disable_postprocessing=disable_postprocessing)
+                             disable_postprocessing=disable_postprocessing,
+                             save_torchscript=save_torchscript)
     elif mode == "fast":
         if overwrite_all_in_gpu is None:
             all_in_gpu = False
@@ -675,7 +685,8 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
                                   all_in_gpu=all_in_gpu,
                                   step_size=step_size, checkpoint_name=checkpoint_name,
                                   segmentation_export_kwargs=segmentation_export_kwargs,
-                                  disable_postprocessing=disable_postprocessing)
+                                  disable_postprocessing=disable_postprocessing,
+                                  save_torchscript=save_torchscript)
     elif mode == "fastest":
         if overwrite_all_in_gpu is None:
             all_in_gpu = False
@@ -688,7 +699,8 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
                                      tta, mixed_precision=mixed_precision, overwrite_existing=overwrite_existing,
                                      all_in_gpu=all_in_gpu,
                                      step_size=step_size, checkpoint_name=checkpoint_name,
-                                     disable_postprocessing=disable_postprocessing)
+                                     disable_postprocessing=disable_postprocessing,
+                                     save_torchscript=save_torchscript)
     else:
         raise ValueError("unrecognized mode. Must be normal, fast or fastest")
 
@@ -764,6 +776,8 @@ if __name__ == "__main__":
                         help='Predictions are done with mixed precision by default. This improves speed and reduces '
                              'the required vram. If you want to disable mixed precision you can set this flag. Note '
                              'that this is not recommended (mixed precision is ~2x faster!)')
+    parser.add_argument('--save-torchscript', default=False, action='store_true', required=False,
+                        help='Trace loaded models and save them to the output fold.')
 
     args = parser.parse_args()
     input_folder = args.input_folder
@@ -834,4 +848,5 @@ if __name__ == "__main__":
     predict_from_folder(model, input_folder, output_folder, folds, save_npz, num_threads_preprocessing,
                         num_threads_nifti_save, lowres_segmentations, part_id, num_parts, tta,
                         mixed_precision=not args.disable_mixed_precision,
-                        overwrite_existing=overwrite, mode=mode, overwrite_all_in_gpu=all_in_gpu, step_size=step_size)
+                        overwrite_existing=overwrite, mode=mode, overwrite_all_in_gpu=all_in_gpu, step_size=step_size,
+                        save_torchscript=args.save_torchscript)

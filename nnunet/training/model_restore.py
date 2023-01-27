@@ -106,7 +106,8 @@ def load_best_model_for_inference(folder):
     return restore_model(pkl_file, checkpoint, False)
 
 
-def load_model_and_checkpoint_files(folder, folds=None, mixed_precision=None, checkpoint_name="model_best"):
+def load_model_and_checkpoint_files(folder, folds=None, mixed_precision=None, checkpoint_name="model_best",
+                                    save_torchscript=False):
     """
     used for if you need to ensemble the five models of a cross-validation. This will restore the model from the
     checkpoint in fold 0, load all parameters of the five folds in ram and return both. This will allow for fast
@@ -145,7 +146,40 @@ def load_model_and_checkpoint_files(folder, folds=None, mixed_precision=None, ch
     all_best_model_files = [join(i, "%s.model" % checkpoint_name) for i in folds]
     print("using the following model files: ", all_best_model_files)
     all_params = [torch.load(i, map_location=torch.device('cpu')) for i in all_best_model_files]
+    if save_torchscript:
+        try:
+            dump_to_torchscript(trainer, folds, all_params)
+        except Exception as e:
+            print(str(e))
+            raise Exception("Couldn't save models in torchscript format.")
     return trainer, all_params
+
+
+def dump_to_torchscript(trainer, folds, all_params):
+    out_dir = os.path.join(os.getcwd(), 'torchscript_models')
+    os.makedirs(out_dir, exist_ok=True)
+
+    x = torch.rand(*(1, 1, *trainer.patch_size))
+    # Required: to enable softmax in the dumped model
+    _tmp_nonlin = trainer.network.final_nonlin
+    trainer.network.final_nonlin = trainer.network.inference_apply_nonlin
+    # Optional: to avoid returning further data used for deep supervision
+    _tmp_do_ds = trainer.network.do_ds
+    trainer.network.do_ds = False
+    # Option: since inference is the purpose of the scripted model, but can be defined in the dumped model too
+    trainer.network.eval()
+    for i, i_f in enumerate(folds):
+        fold_name = i_f.split(os.sep)[-1]
+        trainer.load_checkpoint_ram(all_params[i], train=False)
+        traced_model = torch.jit.trace(trainer.network, x)
+        fpath = os.path.join(out_dir, f"traced_model_{fold_name}.pt")
+        if os.path.exists(fpath):
+            print(f'Not saving torchscript model {fold_name}, because path already exists: {fpath}')
+        else:
+            traced_model.save(fpath)
+            print(f"->Saved: {fpath}")
+    trainer.network.final_nonlin = _tmp_nonlin
+    trainer.network.do_ds = _tmp_do_ds
 
 
 if __name__ == "__main__":
