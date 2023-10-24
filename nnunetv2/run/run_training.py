@@ -92,6 +92,7 @@ def maybe_load_checkpoint(nnunet_trainer: nnUNetTrainer, continue_training: bool
             if not nnunet_trainer.was_initialized:
                 nnunet_trainer.initialize()
             load_pretrained_weights(nnunet_trainer.network, pretrained_weights_file, verbose=True)
+            nnunet_trainer.should_freeze = True
         expected_checkpoint_file = None
 
     if expected_checkpoint_file is not None:
