@@ -189,6 +189,8 @@ class nnUNetTrainer(object):
         # This determines whether some weights should be freezed
         # It is set to True, if pretrained weights are provided
         self.should_freeze = False
+        # Automatically unfreeze for the last X%, in a freeze-unfreeze scheme
+        self.unfreeze_epoch_pc = 85  # Over this, unfreeze all weights
         self.print_to_log_file("\n#######################################################################\n"
                                "Please cite the following paper when using nnU-Net:\n"
                                "Isensee, F., Jaeger, P. F., Kohl, S. A., Petersen, J., & Maier-Hein, K. H. (2021). "
@@ -863,10 +865,24 @@ class nnUNetTrainer(object):
                     p.requires_grad = False
             self.freezed = True
 
+    def unfreeze(self):
+        freezed = getattr(self, 'freezed', False)
+        if freezed:
+            for name, p in self.network.named_parameters():
+                if name.startswith('encoder'):
+                    p.requires_grad = True
+            self.freezed = False
+
     def on_train_epoch_start(self):
         self.network.train()
         if getattr(self, 'should_freeze', False):  # set to True if ptrained weights are provided
-            self.freeze()
+            if 100 * self.current_epoch / self.num_epochs >= self.unfreeze_epoch_pc:
+                self.unfreeze()
+            else:
+                self.freeze()
+            self.print_to_log_file('')
+            self.print_to_log_file(f"Freezed encoder on new epoch: {self.freezed}")
+
         self.lr_scheduler.step(self.current_epoch)
         self.print_to_log_file('')
         self.print_to_log_file(f'Epoch {self.current_epoch}')
